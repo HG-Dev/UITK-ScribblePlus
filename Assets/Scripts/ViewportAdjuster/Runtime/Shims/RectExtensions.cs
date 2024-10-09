@@ -220,6 +220,9 @@ namespace ViewportAdjuster.Shims
         /// </summary>
         public static Rect Encapsulate(this IEnumerable<Rect> rects, RectTransform.Axis? shrinkAxis = null)
         {
+            if (!rects.Any())
+                return default;
+
             float minX = shrinkAxis is RectTransform.Axis.Horizontal ? float.MinValue : float.MaxValue;
             float maxX = shrinkAxis is RectTransform.Axis.Horizontal ? float.MaxValue : float.MinValue;
             float minY = shrinkAxis is RectTransform.Axis.Vertical ? float.MinValue : float.MaxValue;

@@ -1,4 +1,5 @@
 using NUnit.Framework;
+using System;
 using UnityEngine;
 using ViewportAdjuster.Shims;
 // ReSharper disable InconsistentNaming
@@ -125,6 +126,8 @@ public class RectExtensionTests
         Assert.IsTrue(partialsEncapsulated.Equals(new Rect(-10, -10, 30, 30)));
         var XMinYMaxEncapsulated = PartialAdjacents[1..3].Encapsulate();
         Assert.IsTrue(XMinYMaxEncapsulated.Equals(Rect.MinMaxRect(-10, -5, 5, 20)));
+        var nothingEncapsulated = Array.Empty<Rect>().Encapsulate();
+        Assert.IsTrue(nothingEncapsulated.Equals(default));
     }
     
     [Test]
