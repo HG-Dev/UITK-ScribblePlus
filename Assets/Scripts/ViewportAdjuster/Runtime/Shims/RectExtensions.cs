@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using ViewportAdjuster.Shims;
 
 namespace ViewportAdjuster.Shims
 {
@@ -9,11 +10,31 @@ namespace ViewportAdjuster.Shims
     public enum RectSides : byte
     {
         None = 0,
-        YMax = 1 << 0,   // 1
-        XMax = 1 << 1,   // 2
-        YMin = 1 << 2,   // 4
-        XMin = 1 << 3,   // 8
+        XMin = 1 << 0,   // 1
+        YMin = 1 << 1,   // 2
+        XMax = 1 << 2,   // 4
+        YMax = 1 << 3,   // 8
+        X0Y0 = XMin | YMin,
+        X1Y0 = XMax | YMin,
+        X1Y1 = XMax | YMax,
+        X0Y1 = XMin | YMax,
         All = YMax | XMax | YMin | XMin
+    }
+
+    public enum RectAxis : byte
+    {
+        None,
+        X,
+        Y
+    }
+
+    public enum BooleanOperation : byte
+    {
+        Difference, //NOT
+        Division, 
+        Intersection, //AND
+        SymmetricDifference, //XOR
+        Union //WITH
     }
     
     public readonly struct RectSizeComparer : IEqualityComparer<Rect>, IComparer<Rect>
@@ -53,7 +74,7 @@ namespace ViewportAdjuster.Shims
             var otherCentered = new Rect(other) { center = new Vector2(0, other.center.y) };
             return selfCentered.Overlaps(otherCentered);
         }
-        
+
         public static bool OverlapsHorizontally(this Rect self, Rect other)
         {
             var selfCentered = new Rect(self) { center = new Vector2(self.center.x, 0) };
@@ -77,13 +98,13 @@ namespace ViewportAdjuster.Shims
         /// Whether or not this rect touches 'other', and if so,
         /// which side(s) on other this rect touches.
         /// </returns>
-        public static bool OverlapsOrTouches(this Rect self, Rect other, out RectSides sides)
+        public static bool OverlapsOrTouchesSides(this Rect self, Rect other, out RectSides sides)
         {
             sides = RectSides.None;
 
             if (!AnyAxisOverlap(self, other, out (bool horizontal, bool vertical) overlap))
                 return false;
-            
+
             if (TouchesSideApproximately(self, other, RectSides.XMin, overlap) 
                  || (overlap.vertical && self.xMin <= other.xMin && self.xMax > other.xMin))
                 sides |= RectSides.XMin;
@@ -111,8 +132,8 @@ namespace ViewportAdjuster.Shims
             
             var tests = Enum.GetValues(typeof(RectSides))
                 .Cast<RectSides>()
-                .Where(value => sides.HasFlag(value));
-            
+                .Where(value => value <= RectSides.YMax && sides.HasFlag(value));
+
             foreach (var test in tests)
             {
                 switch (test)
@@ -202,7 +223,7 @@ namespace ViewportAdjuster.Shims
 
             while (unconfirmed.Count > 0)
             {
-                var next = unconfirmed.FirstOrDefault(u => confirmed.Any(c => u.OverlapsOrTouches(c, out _)));
+                var next = unconfirmed.FirstOrDefault(u => confirmed.Any(c => u.OverlapsOrTouchesSides(c, out _)));
                 if (next != default)
                 {
                     confirmed.Add(next);
@@ -215,36 +236,43 @@ namespace ViewportAdjuster.Shims
             return confirmed;
         }
 
+
+
         /// <summary>
-        /// Create a rect that contains all given rects.
+        /// Returns a modified collection of Rect such that their minimum and maximum values on 'shrinkAxis'
+        /// are all equivalent.
+        /// Returns the standard intersection, if any, of all rects when shrinkAxis is None.
         /// </summary>
-        public static Rect Encapsulate(this IEnumerable<Rect> rects, RectTransform.Axis? shrinkAxis = null)
+        public static Rect[] IntersectSliceMany(this IEnumerable<Rect> rects, RectAxis sliceAxis = RectAxis.None)
         {
             if (!rects.Any())
-                return default;
+                return Array.Empty<Rect>();
 
-            float minX = shrinkAxis is RectTransform.Axis.Horizontal ? float.MinValue : float.MaxValue;
-            float maxX = shrinkAxis is RectTransform.Axis.Horizontal ? float.MaxValue : float.MinValue;
-            float minY = shrinkAxis is RectTransform.Axis.Vertical ? float.MinValue : float.MaxValue;
-            float maxY = shrinkAxis is RectTransform.Axis.Vertical ? float.MaxValue : float.MinValue;
-            
+            float minX = sliceAxis is RectAxis.X ? float.MinValue : float.MaxValue;
+            float maxX = sliceAxis is RectAxis.X ? float.MaxValue : float.MinValue;
+            float minY = sliceAxis is RectAxis.Y ? float.MinValue : float.MaxValue;
+            float maxY = sliceAxis is RectAxis.Y ? float.MaxValue : float.MinValue;
+
+            // Aggregate limits
+            var count = 0;
             foreach (var rect in rects)
             {
-                switch (shrinkAxis)
+                count++;
+                switch (sliceAxis)
                 {
-                    case RectTransform.Axis.Horizontal:
+                    case RectAxis.X:
                         minX = Mathf.Max(minX, rect.xMin);
                         maxX = Mathf.Min(maxX, rect.xMax);
                         minY = Mathf.Min(minY, rect.yMin);
                         maxY = Mathf.Max(maxY, rect.yMax);
                         break;
-                    case RectTransform.Axis.Vertical:
+                    case RectAxis.Y:
                         minX = Mathf.Min(minX, rect.xMin);
                         maxX = Mathf.Max(maxX, rect.xMax);
                         minY = Mathf.Max(minY, rect.yMin);
                         maxY = Mathf.Min(maxY, rect.yMax);
                         break;
-                    case null:
+                    case RectAxis.None:
                         minX = Mathf.Min(minX, rect.xMin);
                         maxX = Mathf.Max(maxX, rect.xMax);
                         minY = Mathf.Min(minY, rect.yMin);
@@ -257,8 +285,128 @@ namespace ViewportAdjuster.Shims
                 minX = maxX = (minX - maxX) * 0.5f;
             if (minY > maxY)
                 minY = maxY = (minY - maxY) * 0.5f;
+
+            if (sliceAxis is RectAxis.None) // Return basic intersection
+                return new Rect[] { Rect.MinMaxRect(minX, minY, maxX, maxY) };
+
+            Rect[] output = new Rect[count];
+            var i = 0;
+            // Apply limits to input rects
+            foreach (var rect in rects)
+            {
+                var rectMinX = Mathf.Max(minX, rect.xMin);
+                var rectMaxX = Mathf.Min(maxX, rect.xMax);
+                var rectMinY = Mathf.Max(minY, rect.yMin);
+                var rectMaxY = Mathf.Min(maxY, rect.yMax);
+                output[i++] = Rect.MinMaxRect(rectMinX, rectMinY, rectMaxX, rectMaxY);
+            }
+
+            return output;
+        }
+
+        /// <summary>
+        /// Return an rect expanded to contain both alpha and beta.
+        /// </summary>
+        public static Rect Encapsulate(this Rect alpha, Rect beta) => Rect.MinMaxRect(
+                Mathf.Min(alpha.xMin, beta.xMin),
+                Mathf.Min(alpha.yMin, beta.yMin),
+                Mathf.Max(alpha.xMax, beta.xMax),
+                Mathf.Max(alpha.yMax, beta.yMax));
+
+        /// <summary>
+        /// Create a rect that contains all given rects.
+        /// </summary>
+        public static Rect Encapsulate(this IEnumerable<Rect> rects)
+        {
+            Rect output = default;
+
+            // Test plurality
+            using var iterator = rects.GetEnumerator();
             
-            return Rect.MinMaxRect(minX, minY, maxX, maxY);
+            if (!iterator.MoveNext())
+                throw new ArgumentException("Cannot encapsulate empty collection of rects", paramName: nameof(rects));
+
+            output = iterator.Current;
+            while (iterator.MoveNext())
+                output = output.Encapsulate(iterator.Current);
+
+            return output;
+        }
+
+        private static bool TryPunchInternal(in Rect canvas, in Rect remove, out Rect intersect, out RectSides sections)
+        {
+            intersect = canvas;
+            sections = RectSides.None;
+
+            if (!canvas.Overlaps(remove))
+                return false;
+
+            intersect = Rect.MinMaxRect(
+                Mathf.Max(canvas.xMin, remove.xMin),
+                Mathf.Max(canvas.yMin, remove.yMin),
+                Mathf.Min(canvas.xMax, remove.xMax),
+                Mathf.Min(canvas.yMax, remove.yMax)
+            );
+
+            if (intersect.xMin > canvas.xMin)
+                sections |= RectSides.XMin;
+            if (intersect.xMax < canvas.xMax)
+                sections |= RectSides.XMax;
+            if (intersect.yMin > canvas.yMin)
+                sections |= RectSides.YMin;
+            if (intersect.yMax < canvas.yMax)
+                sections |= RectSides.YMax;
+
+            return true;
+        }
+        
+        private static readonly RectSides[] PunchSections = new RectSides[8]
+            {
+                RectSides.X0Y0 ,
+                RectSides.YMin ,
+                RectSides.X1Y0 ,
+                RectSides.XMax ,
+                RectSides.X1Y1 ,
+                RectSides.YMax ,
+                RectSides.X0Y1 ,
+                RectSides.XMin 
+            };
+
+        public static ReadOnlySpan<Rect> Punch(this Rect canvas, Rect remove)
+        {
+            Rect[] result = new Rect[8];
+            var idx = 0;
+
+            // Check if the rectangles intersect
+            if (!TryPunchInternal(canvas, remove, out Rect intersect, out RectSides sections))
+            {
+                // If not, return the canvas unaltered
+                result[idx] = canvas;
+                return result.AsSpan(0, 1);
+            }
+
+            foreach (var subsection in PunchSections)
+            {
+                if (!sections.HasFlag(subsection)) continue;
+
+                result[idx++] = GetPunchSubsection(canvas, intersect, subsection);
+            }
+
+            return result.AsSpan(0, idx);
+
+            static Rect GetPunchSubsection(in Rect canvas, in Rect intersect, in RectSides section) => section switch
+            {
+                // Assume gap between canvas and intersect yMin
+                RectSides.YMin => Rect.MinMaxRect(intersect.xMin, canvas.yMin, intersect.xMax, intersect.yMin),
+                RectSides.XMax => Rect.MinMaxRect(intersect.xMax, intersect.yMin, canvas.xMax, intersect.yMax),
+                RectSides.YMax => Rect.MinMaxRect(intersect.xMin, intersect.yMax, intersect.xMax, canvas.yMax),
+                RectSides.XMin => Rect.MinMaxRect(canvas.xMin, intersect.yMin, intersect.xMin, intersect.yMax),
+                RectSides.X0Y0 => Rect.MinMaxRect(canvas.xMin, canvas.yMin, intersect.xMin, intersect.yMin),
+                RectSides.X1Y0 => Rect.MinMaxRect(intersect.xMax, canvas.yMin, canvas.xMax, intersect.yMin),
+                RectSides.X1Y1 => Rect.MinMaxRect(intersect.xMax, intersect.yMax, canvas.xMax, canvas.yMax),
+                RectSides.X0Y1 => Rect.MinMaxRect(canvas.xMin, intersect.yMax, intersect.xMin, canvas.yMax),
+                _ => throw new ArgumentOutOfRangeException(nameof(section)),
+            };
         }
     }
 }
