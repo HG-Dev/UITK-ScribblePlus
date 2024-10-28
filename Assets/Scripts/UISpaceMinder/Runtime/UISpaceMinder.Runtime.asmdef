@@ -1,6 +1,6 @@
 {
-    "name": "ViewportAdjuster.Runtime",
-    "rootNamespace": "ViewportAdjuster",
+    "name": "UiSpaceMinder.Runtime",
+    "rootNamespace": "UISpaceMinder",
     "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],

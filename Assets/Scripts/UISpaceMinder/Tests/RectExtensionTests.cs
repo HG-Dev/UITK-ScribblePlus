@@ -1,14 +1,14 @@
 using NUnit.Framework;
 using System;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using UnityEngine;
-using ViewportAdjuster.Shims;
+using UISpaceMinder.Shims;
 // ReSharper disable InconsistentNaming
 
 public class RectExtensionTests
 {
     private static readonly Rect Baseline = new Rect(0, 0, 10, 10);
+    private static readonly Rect ContainsBaseline = new Rect(0, 0, 20, 20);
     private static readonly Rect NotAdjacent = new Rect(10, 10, 10, 10);
     private static readonly Rect YMinPartialAdjacent = new Rect(5, -10, 10, 10);
     private static readonly Rect YMaxPartialAdjacent = new Rect(-5, 10, 10, 10);
@@ -50,6 +50,24 @@ public class RectExtensionTests
     //        ████████████████                20,20                     
 
     [Test]
+    public void ContainsOtherRect()
+    {
+        foreach (var externalRect in PartialAdjacents.Append(NotAdjacent))
+            Assert.IsFalse(Baseline.Contains(externalRect));
+
+        foreach (var internalRect in CupIntersections)
+            Assert.IsTrue(Baseline.Contains(internalRect));
+
+        Assert.IsTrue(ContainsBaseline.Contains(Baseline));
+    }
+
+    [Test]
+    public void NormalizeQuarterBounds()
+    {
+        Assert.That(Baseline.Normalize(ContainsBaseline), Is.EqualTo(new Rect(0,0,0.5f,0.5f)));
+    }
+
+    [Test]
     public void OverlapsHorizontally()
     {
         Assert.IsFalse(NotAdjacent.OverlapsHorizontally(Baseline));
@@ -63,6 +81,7 @@ public class RectExtensionTests
         Assert.IsTrue(YMinPartialAdjacent.OverlapsHorizontally(Baseline));
         Assert.IsTrue(YMaxPartialAdjacent.OverlapsHorizontally(Baseline));
         Assert.IsTrue(FullyInternal.OverlapsHorizontally(Baseline));
+        Assert.IsTrue(ContainsBaseline.OverlapsHorizontally(Baseline));
     }
     
     [Test]
@@ -79,6 +98,7 @@ public class RectExtensionTests
         Assert.IsFalse(YMinPartialAdjacent.OverlapsVertically(Baseline));
         Assert.IsFalse(YMaxPartialAdjacent.OverlapsVertically(Baseline));
         Assert.IsTrue(FullyInternal.OverlapsVertically(Baseline));
+        Assert.IsTrue(ContainsBaseline.OverlapsVertically(Baseline));
     }
     
     [Test]
@@ -98,6 +118,9 @@ public class RectExtensionTests
         Assert.IsFalse(XMinPartialOverlap.TouchesSideApproximately(Baseline, RectSides.XMin));
         Assert.IsFalse(NotAdjacent.TouchesSideApproximately(Baseline, RectSides.XMax));
         Assert.IsFalse(FullyInternal.TouchesSideApproximately(Baseline, RectSides.XMax));
+
+        Assert.IsTrue(ContainsBaseline.TouchesSideApproximately(Baseline, RectSides.X0Y0));
+        Assert.IsFalse(ContainsBaseline.TouchesSideApproximately(Baseline, RectSides.X1Y1));
     }
     
     [Test]
@@ -131,6 +154,9 @@ public class RectExtensionTests
         Assert.IsTrue(sides is RectSides.None, $"Comparison of {NotAdjacent} to baseline {Baseline}\nExpected sides to be {RectSides.None}, but it was {sides}");
         Assert.IsFalse(FullyInternal.OverlapsOrTouchesSides(Baseline, out sides));
         Assert.IsTrue(sides is RectSides.None);
+
+        Assert.IsTrue(ContainsBaseline.OverlapsOrTouchesSides(Baseline, out sides));
+        Assert.IsTrue(sides is RectSides.All);
     }
 
     [Test]
@@ -142,24 +168,24 @@ public class RectExtensionTests
         var punched = Baseline.Punch(XMinPartialOverlap);
         foreach (var rect in punched)
             Assert.IsTrue(rect.width > 0 && rect.height > 0);
-        Assert.That(punched.Length, Is.EqualTo(3));
+        Assert.That(punched.Count, Is.EqualTo(3));
         punched = Baseline.Punch(YMinPartialOverlap);
         foreach (var rect in punched)
             Assert.IsTrue(rect.width > 0 && rect.height > 0);
-        Assert.That(punched.Length, Is.EqualTo(3));
+        Assert.That(punched.Count, Is.EqualTo(3));
         punched = Baseline.Punch(XMaxPartialOverlap);
         foreach (var rect in punched)
             Assert.IsTrue(rect.width > 0 && rect.height > 0);
-        Assert.That(punched.Length, Is.EqualTo(3));
+        Assert.That(punched.Count, Is.EqualTo(3));
         punched = Baseline.Punch(YMaxPartialOverlap);
         foreach (var rect in punched)
             Assert.IsTrue(rect.width > 0 && rect.height > 0);
-        Assert.That(punched.Length, Is.EqualTo(3));
+        Assert.That(punched.Count, Is.EqualTo(3));
 
         punched = Baseline.Punch(FullyInternal);
         foreach (var rect in punched)
             Assert.IsTrue(rect.width > 0 && rect.height > 0);
-        Assert.That(punched.Length, Is.EqualTo(8));
+        Assert.That(punched.Count, Is.EqualTo(8));
 
         foreach (var cup in CupIntersections)
         {
@@ -174,8 +200,11 @@ public class RectExtensionTests
                 }
             }
                 
-            Assert.That(punched.Length, Is.EqualTo(5));
+            Assert.That(punched.Count, Is.EqualTo(5));
         }
+
+        punched = Baseline.Punch(ContainsBaseline);
+        Assert.IsEmpty(punched);
     }
 
     [Test]
@@ -186,6 +215,7 @@ public class RectExtensionTests
         var XMinYMaxEncapsulated = PartialAdjacents[1..3].Encapsulate();
         Assert.IsTrue(XMinYMaxEncapsulated.Equals(Rect.MinMaxRect(-10, -5, 5, 20)));
         Assert.Throws<ArgumentException>(() => Array.Empty<Rect>().Encapsulate());
+        Assert.That(Baseline.Encapsulate(ContainsBaseline), Is.EqualTo(ContainsBaseline));
     }
     
     [Test]
@@ -200,6 +230,9 @@ public class RectExtensionTests
             .IntersectSliceMany(RectAxis.X)
             .Encapsulate();
         Assert.IsTrue(XMinYMaxEncapsulated.Equals(Rect.MinMaxRect(-5, -5, 0, 20)), $"Expected {Rect.MinMaxRect(-5, -5, 0, 20)} / Recieved {partialsEncapsulated}");
+
+        var baselines = new[] { Baseline, ContainsBaseline };
+        Assert.That(baselines.IntersectSliceMany(RectAxis.X).Encapsulate().size, Is.EqualTo(new Vector2(Baseline.width, ContainsBaseline.height)));
     }
     
     [Test]
@@ -214,5 +247,8 @@ public class RectExtensionTests
             .IntersectSliceMany(RectAxis.Y)
             .Encapsulate();
         Assert.IsTrue(XMinYMinEncapsulated.Equals(Rect.MinMaxRect(-10, -5, 15, 0)));
+
+        var baselines = new[] { Baseline, ContainsBaseline };
+        Assert.That(baselines.IntersectSliceMany(RectAxis.Y).Encapsulate().size, Is.EqualTo(new Vector2(ContainsBaseline.width, Baseline.height)));
     }
 }

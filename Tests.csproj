@@ -61,10 +61,10 @@
     <Analyzer Include="C:\Program Files\Unity\Hub\Editor\6000.0.21f1\Editor\Data\Tools\Unity.SourceGenerators\Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\Scripts\ViewportAdjuster\Tests\RectExtensionTests.cs" />
+    <Compile Include="Assets\Scripts\UISpaceMinder\Tests\RectExtensionTests.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Assets\Scripts\ViewportAdjuster\Tests\ViewportAdjuster.Tests.asmdef" />
+    <None Include="Assets\Scripts\UISpaceMinder\Tests\UISpaceMinder.Tests.asmdef" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
@@ -1069,10 +1069,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="ViewportAdjuster.Runtime.csproj">
-      <Project>{7BC4EB43-01D4-9D65-A955-6FA6FC80AE56}</Project>
-      <Name>ViewportAdjuster.Runtime</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="GenerateTargetFrameworkMonikerAttribute" />

@@ -1,10 +1,10 @@
+using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using ViewportAdjuster.Shims;
 
-namespace ViewportAdjuster.Shims
+namespace UISpaceMinder.Shims
 {
     [Flags]
     public enum RectSides : byte
@@ -27,47 +27,25 @@ namespace ViewportAdjuster.Shims
         X,
         Y
     }
-
-    public enum BooleanOperation : byte
-    {
-        Difference, //NOT
-        Division, 
-        Intersection, //AND
-        SymmetricDifference, //XOR
-        Union //WITH
-    }
-    
-    public readonly struct RectSizeComparer : IEqualityComparer<Rect>, IComparer<Rect>
-    {
-        private readonly Vector2 _mask;
-
-        public bool Equals(Rect a, Rect b)
-        {
-            return a.size.Equals(b.size);
-        }
-
-        public int GetHashCode(Rect obj)
-        {
-            return obj.size.GetHashCode();
-        }
-
-        public RectSizeComparer(bool useX = true, bool useY = true)
-        {
-            _mask = new Vector2(useX ? 1 : 0, useY ? 1 : 0);
-        }
-
-        public int Compare(Rect a, Rect b)
-        {
-            var aSize = a.size;
-            var bSize = b.size;
-            aSize.Scale(_mask);
-            bSize.Scale(_mask);
-            return aSize.sqrMagnitude.CompareTo(bSize.sqrMagnitude);
-        }
-    }
     
     public static class RectExtensions
     {
+        public static bool HasZeroArea(this Rect self) => 
+            Mathf.Approximately(self.width, 0) || Mathf.Approximately(self.height, 0);
+
+        public static bool Contains(this Rect self, Rect other) => other.yMin >= self.yMin && other.yMax <= self.yMax
+                && other.xMin >= self.xMin && other.xMax <= self.xMax;
+
+        public static Rect Normalize(this Rect self, Rect limits)
+        {
+            var xMin = Mathf.InverseLerp(limits.xMin, limits.xMax, self.xMin);
+            var xMax = Mathf.InverseLerp(limits.xMin, limits.xMax, self.xMax);
+            var yMin = Mathf.InverseLerp(limits.yMin, limits.yMax, self.yMin);
+            var yMax = Mathf.InverseLerp(limits.yMin, limits.yMax, self.yMax);
+
+            return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+        }
+
         public static bool OverlapsVertically(this Rect self, Rect other)
         {
             var selfCentered = new Rect(self) { center = new Vector2(0, self.center.y) };
@@ -132,7 +110,7 @@ namespace ViewportAdjuster.Shims
             
             var tests = Enum.GetValues(typeof(RectSides))
                 .Cast<RectSides>()
-                .Where(value => value <= RectSides.YMax && sides.HasFlag(value));
+                .Where(value => Mathf.IsPowerOfTwo((int)value) && sides.HasFlag(value));
 
             foreach (var test in tests)
             {
@@ -170,7 +148,7 @@ namespace ViewportAdjuster.Shims
                             break;
                         return false;
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        throw new ArgumentOutOfRangeException(paramName: nameof(test), $"Should be one flag: {test}");
                 }
             }
             
@@ -235,7 +213,6 @@ namespace ViewportAdjuster.Shims
             
             return confirmed;
         }
-
 
 
         /// <summary>
@@ -372,27 +349,32 @@ namespace ViewportAdjuster.Shims
                 RectSides.XMin 
             };
 
-        public static ReadOnlySpan<Rect> Punch(this Rect canvas, Rect remove)
+        public static List<Rect> Punch(this Rect canvas, Rect remove)
         {
-            Rect[] result = new Rect[8];
+            List<Rect> result = new (8);
+
             var idx = 0;
 
             // Check if the rectangles intersect
             if (!TryPunchInternal(canvas, remove, out Rect intersect, out RectSides sections))
             {
                 // If not, return the canvas unaltered
-                result[idx] = canvas;
-                return result.AsSpan(0, 1);
+                result.Add(canvas);
+                return result;
             }
+
+            // Check if the punch fully deletes canvas
+            if (intersect.Equals(canvas))
+                return result;
 
             foreach (var subsection in PunchSections)
             {
                 if (!sections.HasFlag(subsection)) continue;
 
-                result[idx++] = GetPunchSubsection(canvas, intersect, subsection);
+                result.Add( GetPunchSubsection(canvas, intersect, subsection) );
             }
 
-            return result.AsSpan(0, idx);
+            return result;
 
             static Rect GetPunchSubsection(in Rect canvas, in Rect intersect, in RectSides section) => section switch
             {
