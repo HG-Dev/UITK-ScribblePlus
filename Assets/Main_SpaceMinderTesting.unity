@@ -131,6 +131,7 @@ GameObject:
   - component: {fileID: 231048558}
   - component: {fileID: 231048559}
   - component: {fileID: 231048560}
+  - component: {fileID: 231048561}
   m_Layer: 0
   m_Name: UI
   m_TagString: Untagged
@@ -218,6 +219,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2c68be9b93b76604e8dc03d39b1bc40d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &231048561
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 231048555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 27a2adbe67aa33c44a69684b2358d0c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  <Cameras>k__BackingField:
+  - {fileID: 1411473418}
 --- !u!1001 &351653253
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -724,10 +739,10 @@ Camera:
   m_LensShift: {x: 0, y: 0}
   m_NormalizedViewPortRect:
     serializedVersion: 2
-    x: 0.13125
-    y: 0.41
-    width: 0.86875
-    height: 0.63
+    x: 0.15208334
+    y: 0
+    width: 0.84791666
+    height: 1
   near clip plane: 0.1
   far clip plane: 100
   field of view: 20

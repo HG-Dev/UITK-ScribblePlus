@@ -1,5 +1,5 @@
 {
-    "name": "UiSpaceMinder.Runtime",
+    "name": "UISpaceMinder.Runtime",
     "rootNamespace": "UISpaceMinder",
     "references": [],
     "includePlatforms": [],

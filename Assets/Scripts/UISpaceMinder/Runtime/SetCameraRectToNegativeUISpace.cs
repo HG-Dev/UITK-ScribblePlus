@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using UISpaceMinder.Shims;
 using UnityEngine;
 
 namespace UISpaceMinder
@@ -16,6 +17,11 @@ namespace UISpaceMinder
             if (!TryGetComponent<UISpaceMinder>(out var minder))
                 return;
 
+            // Set camera rect on enable using last known negative space, if available
+            if (!minder.NegativeSpace.Equals(NamedRectGroup.Empty))
+                OnUserInterfaceChanged(minder.NegativeSpace, minder.LastKnownCanvas, 
+                    minder.NegativeSpace.bounds.Normalize(minder.LastKnownCanvas));
+                
             minder.NegativeSpaceChanged += OnUserInterfaceChanged;
         }
 
