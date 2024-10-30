@@ -33,6 +33,9 @@ namespace UISpaceMinder.Shims
         public static bool HasZeroArea(this Rect self) => 
             Mathf.Approximately(self.width, 0) || Mathf.Approximately(self.height, 0);
 
+        public static float Area(this Rect self) => self.width * self.height;
+        
+
         public static bool Contains(this Rect self, Rect other) => other.yMin >= self.yMin && other.yMax <= self.yMax
                 && other.xMin >= self.xMin && other.xMax <= self.xMax;
 
@@ -337,7 +340,7 @@ namespace UISpaceMinder.Shims
             return true;
         }
         
-        private static readonly RectSides[] PunchSections = new RectSides[8]
+        private static readonly RectSides[] PunchSectionSequence = new RectSides[8]
             {
                 RectSides.X0Y0 ,
                 RectSides.YMin ,
@@ -365,12 +368,11 @@ namespace UISpaceMinder.Shims
             if (intersect.Equals(canvas))
                 return result;
 
-            foreach (var subsection in PunchSections)
-            {
-                if (!sections.HasFlag(subsection)) continue;
-
-                result.Add( GetPunchSubsection(canvas, intersect, subsection) );
-            }
+            result.AddRange(from subsection in PunchSectionSequence 
+                            where sections.HasFlag(subsection) 
+                            select GetPunchSubsection(canvas, intersect, subsection) into rect 
+                            where !rect.HasZeroArea() 
+                            select rect);
 
             return result;
 

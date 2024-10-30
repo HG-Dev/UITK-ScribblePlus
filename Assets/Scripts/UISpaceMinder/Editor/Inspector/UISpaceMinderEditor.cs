@@ -45,7 +45,7 @@ namespace UISpaceMinder.Inspector
 
         private static void ModifySpaceVisualization(MultiColumnListView table, VisualElement visualizer, in int colIdx, in NamedRectGroup space, in Rect canvas)
         {
-            if (canvas.height == 0 || space.collection.Length == 0)
+            if (canvas.height == 0)
             {
                 PrepareChildElementCount(visualizer, 0);
                 return;

@@ -36,9 +36,9 @@ namespace UISpaceMinder
         private void OnUserInterfaceChanged(NamedRectGroup space, Rect canvas, Rect normalizedBounds)
         {
             if (Cameras is not { Length: > 0 }) return;
-
+            
             // Flip Y position (camera Y is opposite of UITK)
-            normalizedBounds.y = 1 - normalizedBounds.height;
+            normalizedBounds.y = 1 - normalizedBounds.height - normalizedBounds.y;
             foreach (var cam in Cameras.Where(c => c != null))
                 cam.rect = normalizedBounds;
         }

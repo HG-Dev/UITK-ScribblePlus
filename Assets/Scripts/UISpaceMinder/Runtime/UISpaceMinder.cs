@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System;
 using UISpaceMinder.Shims;
+using UnityEditor.UI;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -44,13 +45,10 @@ namespace UISpaceMinder
 
         public void AnalyzeUIDocument(bool forceSendEvents = false)
         {
-            static bool IsVisibleAndOpaque(VisualElement element) =>
-                element.visible && Mathf.Approximately(element.resolvedStyle.backgroundColor.a * element.resolvedStyle.opacity, 1);
-
             // Get all visible, named, opaque elements
             var blockers = _document.rootVisualElement.Query()
                 .OfType<VisualElement>()
-                .Where(IsVisibleAndOpaque)
+                .Where(IsVisible)
                 .Build()
                 .ToList();
 
@@ -70,7 +68,6 @@ namespace UISpaceMinder
                         continue;
 
                     // Which rects derived from this element are valid?
-
                     var isUnique = (horizontal: true, vertical: !verticalRect.Equals(horizontalRect));
                     if (rects.Count > 0)
                     {
@@ -113,7 +110,11 @@ namespace UISpaceMinder
                 {
                     for (var queueCount = punchQueue.Count; queueCount > 0; queueCount--)
                     {
-                        foreach (var punched in punchQueue.Dequeue().Punch(uiRect.rect))
+                        var significantPunchHoles = punchQueue
+                            .Dequeue()
+                            .Punch(uiRect.rect)
+                            .Where(p => p.Area() > 4f);
+                        foreach (var punched in significantPunchHoles)
                         {
                             punchQueue.Enqueue(punched);
                         }
@@ -123,7 +124,9 @@ namespace UISpaceMinder
 
                 if (punchQueue.Any())
                 {
+                    Debug.Log("Punch queue contents:\n" + string.Join('\n', punchQueue));
                     negativeSpace = new NamedRectGroup(punchQueue.Encapsulate(), punchQueue.Select(r => new NamedRect(r)));
+                    Debug.Log("Negative space bounds calculated to be: " + negativeSpace.bounds.ToString());
                 }
             }
 
@@ -137,6 +140,22 @@ namespace UISpaceMinder
 
             PositiveSpace = positiveSpace;
             NegativeSpace = negativeSpace;
+            return;
+
+            static bool IsVisible(VisualElement element) =>
+                element.visible && element.worldBound.Area() > 4 
+                                && AncestorsAndSelf(element).All(e => Mathf.Approximately(e.resolvedStyle.opacity, 1))
+                                && Mathf.Approximately(element.resolvedStyle.backgroundColor.a, 1);
+
+            static IEnumerable<VisualElement> AncestorsAndSelf(VisualElement element)
+            {
+                do
+                {
+                    yield return element;
+                    element = element.parent;
+                } 
+                while (element != null);
+            }
         }
 
         static (Rect horizontal, Rect vertical, Rect maxBounds) GetRectsFromVisualElement(in VisualElement element)
