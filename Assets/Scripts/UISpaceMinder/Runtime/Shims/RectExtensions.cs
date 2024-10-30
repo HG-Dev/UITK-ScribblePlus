@@ -353,8 +353,6 @@ namespace UISpaceMinder.Shims
         {
             List<Rect> result = new (8);
 
-            var idx = 0;
-
             // Check if the rectangles intersect
             if (!TryPunchInternal(canvas, remove, out Rect intersect, out RectSides sections))
             {

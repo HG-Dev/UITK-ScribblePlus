@@ -8,29 +8,27 @@ using UnityEngine.UIElements;
 namespace UISpaceMinder
 {
     /// <summary>
-    /// Obtains the positive (UI-covered) and negative space in a UIDocument.
+    /// Enumerates all visual elements in a UIDocument to obtain its positive (UI-covered) and negative space.
     /// </summary>
     /// <remarks>
-    /// Must be placed under a UIDocument to recieve UITK updates.
+    /// Must be placed under a UIDocument to receive UITK updates.
     /// </remarks>
     [RequireComponent(typeof(UIDocument))]
     [ExecuteAlways]
-    public class UISpaceMinder : MonoBehaviour
+    public sealed class UISpaceMinder : MonoBehaviour
     {
-        private UIDocument _document;
-        private RectGroup _previousPositiveSpace = RectGroup.Empty;
-        private RectGroup _previousNegativeSpace = RectGroup.Empty;
-
-        [Header("Sync Camera Rect to Negative UI Space")]
-        [SerializeField]
-        private Camera[] _targetCameras = Array.Empty<Camera>();
-
-        public delegate void UISpaceUpdateDelegate(RectGroup space, Rect canvas, Rect normalizedBounds);
+        public delegate void UISpaceUpdateDelegate(NamedRectGroup space, Rect canvas, Rect normalizedBounds);
         public event UISpaceUpdateDelegate PositiveSpaceChanged;
         public event UISpaceUpdateDelegate NegativeSpaceChanged;
 
+        public Rect LastKnownCanvas { get; private set; } = new Rect();
+        public NamedRectGroup PositiveSpace { get; private set; } = NamedRectGroup.Empty;
+        public NamedRectGroup NegativeSpace { get; private set; } = NamedRectGroup.Empty;
 
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("TypeSafety", "UNT0006:Incorrect message signature", Justification = "Awaitable is a valid return signature")]
+        private UIDocument _document;
+
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("TypeSafety", "UNT0006:Incorrect message signature", Justification = "Awaitable is a valid signature")]
         private async Awaitable OnEnable()
         {
             _document = GetComponent<UIDocument>();
@@ -41,6 +39,14 @@ namespace UISpaceMinder
             if (destroyCancellationToken.IsCancellationRequested)
                 return;
 
+            AnalyzeUIDocument(forceSendEvents: true);
+        }
+
+        public void AnalyzeUIDocument(bool forceSendEvents = false)
+        {
+            static bool IsVisibleAndOpaque(VisualElement element) =>
+                element.visible && Mathf.Approximately(element.resolvedStyle.backgroundColor.a * element.resolvedStyle.opacity, 1);
+
             // Get all visible, named, opaque elements
             var blockers = _document.rootVisualElement.Query()
                 .OfType<VisualElement>()
@@ -48,67 +54,66 @@ namespace UISpaceMinder
                 .Build()
                 .ToList();
 
-            var canvas = _document.rootVisualElement.worldBound;
+            LastKnownCanvas = _document.rootVisualElement.worldBound;
 
             // Calculate positive space by aggregating element rects
-            var positiveSpace = RectGroup.Empty;
+            var positiveSpace = NamedRectGroup.Empty;
 
             {
-                Rect bounds = canvas;
-                List<Rect> rects = new List<Rect>();
+                List<NamedRect> rects = new(blockers.Count * 2);
 
-                var validElementRects = blockers
-                    .Select(blocker => GetRectsFromVisualElement(blocker))
-                    .Where(r => !r.maxBounds.HasZeroArea() && r.maxBounds.Overlaps(canvas));
-
-                foreach (var (horizontal, vertical, maxBounds) in validElementRects)
+                foreach (var blocker in blockers)
                 {
-                    var isUnique = (horizontal: true, vertical: !vertical.Equals(horizontal));
-                    if (bounds.Equals(canvas))
+                    var (horizontalRect, verticalRect, maxBounds) = GetRectsFromVisualElement(blocker);
+
+                    if (maxBounds.HasZeroArea() || !maxBounds.Overlaps(LastKnownCanvas))
+                        continue;
+
+                    // Which rects derived from this element are valid?
+
+                    var isUnique = (horizontal: true, vertical: !verticalRect.Equals(horizontalRect));
+                    if (rects.Count > 0)
                     {
-                        bounds = maxBounds;
-                    }
-                    else
-                    {
-                        bounds = bounds.Encapsulate(maxBounds);
                         isUnique = (
-                            horizontal: !rects.Any(r => r.Contains(horizontal)), 
-                            vertical: isUnique.vertical && !rects.Any(r => r.Contains(vertical))
+                            horizontal: !rects.Any(r => r.rect.Contains(horizontalRect)),
+                            vertical: isUnique.vertical && !rects.Any(r => r.rect.Contains(verticalRect))
                         );
                     }
-                    
+
                     if (isUnique.horizontal)
                     {
                         // Remove all prexisting elements that could be contained by this
-                        rects.RemoveAll(rect => horizontal.Contains(rect));
-                        rects.Add(horizontal);
+                        rects.RemoveAll(nr => horizontalRect.Contains(nr.rect));
+
+                        rects.Add(new NamedRect(horizontalRect, blocker.name ?? maxBounds.center.ToString()));
                     }
-                    
+
                     if (isUnique.vertical)
                     {
-                        rects.RemoveAll(rect => vertical.Contains(rect));
-                        rects.Add(vertical);
+                        rects.RemoveAll(nr => verticalRect.Contains(nr.rect));
+
+                        rects.Add(new NamedRect(verticalRect, blocker.name ?? maxBounds.center.ToString()));
                     }
                 }
 
                 if (rects.Count > 0)
                 {
-                    positiveSpace = new RectGroup(bounds, rects.ToArray());
+                    positiveSpace = new NamedRectGroup(rects);
                 }
             }
 
             // Calculate negative space by punching holes in canvas
-            var negativeSpace = new RectGroup(canvas, new[] { canvas });
+            var negativeSpace = new NamedRectGroup(new[] { new NamedRect(LastKnownCanvas, "Canvas") });
 
             if (!positiveSpace.bounds.HasZeroArea())
             {
                 var punchQueue = new Queue<Rect>();
-                punchQueue.Enqueue(canvas);
+                punchQueue.Enqueue(LastKnownCanvas);
                 foreach (var uiRect in positiveSpace.collection)
                 {
                     for (var queueCount = punchQueue.Count; queueCount > 0; queueCount--)
                     {
-                        foreach (var punched in punchQueue.Dequeue().Punch(uiRect))
+                        foreach (var punched in punchQueue.Dequeue().Punch(uiRect.rect))
                         {
                             punchQueue.Enqueue(punched);
                         }
@@ -118,35 +123,20 @@ namespace UISpaceMinder
 
                 if (punchQueue.Any())
                 {
-                    negativeSpace = new RectGroup(punchQueue.Encapsulate(), punchQueue.ToArray());
+                    negativeSpace = new NamedRectGroup(punchQueue.Encapsulate(), punchQueue.Select(r => new NamedRect(r)));
                 }
             }
 
-            Debug.Log($"Calculation of positive and negative space finished.\nCanvas: {canvas}\n\tPos:\n{positiveSpace}\n\tNeg:\n{negativeSpace}");
+            var positiveSpaceNormalized = positiveSpace.bounds.Normalize(LastKnownCanvas);
+            var negativeSpaceNormalized = negativeSpace.bounds.Normalize(LastKnownCanvas);
 
-            var positiveSpaceNormalized = positiveSpace.bounds.Normalize(canvas);
-            var negativeSpaceNormalized = negativeSpace.bounds.Normalize(canvas);
+            if (forceSendEvents || !PositiveSpace.Equals(positiveSpace))
+                PositiveSpaceChanged?.Invoke(positiveSpace, LastKnownCanvas, positiveSpaceNormalized);
+            if (forceSendEvents || !NegativeSpace.Equals(negativeSpace))
+                NegativeSpaceChanged?.Invoke(negativeSpace, LastKnownCanvas, negativeSpaceNormalized);
 
-            if (!_previousPositiveSpace.Equals(positiveSpace))
-                PositiveSpaceChanged?.Invoke(positiveSpace, canvas, positiveSpaceNormalized);
-            if (!_previousNegativeSpace.Equals(negativeSpace))
-                NegativeSpaceChanged?.Invoke(negativeSpace, canvas, negativeSpaceNormalized);
-
-            foreach (var cam in _targetCameras.Where(c => c != null))
-                cam.rect = negativeSpaceNormalized;
-
-            _previousPositiveSpace = positiveSpace;
-            _previousNegativeSpace = negativeSpace;
-            Debug.Log("Finished");
-        }
-
-
-        static bool IsVisibleAndOpaque(VisualElement element)
-        {
-            return element.visible
-                   //&& !string.IsNullOrEmpty(element.name)
-                   && Mathf.Approximately(
-                       element.resolvedStyle.backgroundColor.a * element.resolvedStyle.opacity, 1);
+            PositiveSpace = positiveSpace;
+            NegativeSpace = negativeSpace;
         }
 
         static (Rect horizontal, Rect vertical, Rect maxBounds) GetRectsFromVisualElement(in VisualElement element)
@@ -161,10 +151,10 @@ namespace UISpaceMinder
             // Further reduce by removing rounded corners
             var minBounds = new Rect(maxBounds);
             {
-                var (tl, tr, br, bl) = (element.resolvedStyle.borderTopLeftRadius,
-                    element.resolvedStyle.borderTopRightRadius,
-                    element.resolvedStyle.borderBottomRightRadius,
-                    element.resolvedStyle.borderBottomLeftRadius);
+                var (tl, tr, br, bl) = (Mathf.Max(0, element.resolvedStyle.borderTopLeftRadius),
+                    Mathf.Max(0, element.resolvedStyle.borderTopRightRadius),
+                    Mathf.Max(0, element.resolvedStyle.borderBottomRightRadius),
+                    Mathf.Max(0, element.resolvedStyle.borderBottomLeftRadius));
 
                 minBounds.xMin += Mathf.Max(bl, tl);
                 minBounds.yMin += Mathf.Max(tl, tr);

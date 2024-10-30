@@ -59,6 +59,12 @@ public class RectExtensionTests
             Assert.IsTrue(Baseline.Contains(internalRect));
 
         Assert.IsTrue(ContainsBaseline.Contains(Baseline));
+
+        // Specific case
+        Rect leftPane = new Rect(Vector2.zero, new Vector2(168, 504));
+        Rect leftContainer = new Rect(10, 171.33f, 148, 184);
+
+        Assert.IsTrue(leftPane.Contains(leftContainer));
     }
 
     [Test]

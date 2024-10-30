@@ -9,11 +9,11 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>10.0.20506</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <RootNamespace>ViewportAdjuster</RootNamespace>
-    <ProjectGuid>{7BC4EB43-01D4-9D65-A955-6FA6FC80AE56}</ProjectGuid>
+    <RootNamespace></RootNamespace>
+    <ProjectGuid>{4C91614C-2013-EBCF-C0A8-2DA90B064215}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <AssemblyName>ViewportAdjuster.Runtime</AssemblyName>
+    <AssemblyName>UISpaceMinder.Editor</AssemblyName>
     <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <BaseDirectory>.</BaseDirectory>
@@ -50,7 +50,7 @@
     <UnityProjectGenerator>Package</UnityProjectGenerator>
     <UnityProjectGeneratorVersion>2.0.22</UnityProjectGeneratorVersion>
     <UnityProjectGeneratorStyle>Legacy</UnityProjectGeneratorStyle>
-    <UnityProjectType>Game:1</UnityProjectType>
+    <UnityProjectType>Editor:5</UnityProjectType>
     <UnityBuildTarget>StandaloneWindows64:19</UnityBuildTarget>
     <UnityVersion>6000.0.21f1</UnityVersion>
   </PropertyGroup>
@@ -61,10 +61,11 @@
     <Analyzer Include="C:\Program Files\Unity\Hub\Editor\6000.0.21f1\Editor\Data\Tools\Unity.SourceGenerators\Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\Scripts\ViewportAdjuster\Runtime\Shims\RectExtensions.cs" />
+    <Compile Include="Assets\Scripts\UISpaceMinder\Editor\Elements\SimpleCheckerboardBackground.cs" />
+    <Compile Include="Assets\Scripts\UISpaceMinder\Editor\Inspector\UISpaceMinderEditor.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Assets\Scripts\ViewportAdjuster\Runtime\ViewportAdjuster.Runtime.asmdef" />
+    <None Include="Assets\Scripts\UISpaceMinder\Editor\UISpaceMinder.Editor.asmdef" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

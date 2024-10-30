@@ -1,20 +1,40 @@
+using System;
+using System.Linq;
 using UnityEngine;
 
 namespace UISpaceMinder
 {
     [RequireComponent(typeof(UISpaceMinder))]
+    [ExecuteAlways]
     public class SetCameraRectToNegativeUISpace : MonoBehaviour
     {
-        // Start is called once before the first execution of Update after the MonoBehaviour is created
-        void Start()
+        [SerializeField]
+        [field: SerializeField] public Camera[] Cameras { get; set; } = Array.Empty<Camera>();
+
+        private void OnEnable()
         {
-        
+            if (!TryGetComponent<UISpaceMinder>(out var minder))
+                return;
+
+            minder.NegativeSpaceChanged += OnUserInterfaceChanged;
         }
 
-        // Update is called once per frame
-        void Update()
+        private void OnDisable()
         {
-        
+            if (!TryGetComponent<UISpaceMinder>(out var minder))
+                return;
+
+            minder.NegativeSpaceChanged -= OnUserInterfaceChanged;
+        }
+
+        private void OnUserInterfaceChanged(NamedRectGroup space, Rect canvas, Rect normalizedBounds)
+        {
+            if (Cameras is not { Length: > 0 }) return;
+
+            // Flip Y position (camera Y is opposite of UITK)
+            normalizedBounds.y = 1 - normalizedBounds.height;
+            foreach (var cam in Cameras.Where(c => c != null))
+                cam.rect = normalizedBounds;
         }
     }
 }
