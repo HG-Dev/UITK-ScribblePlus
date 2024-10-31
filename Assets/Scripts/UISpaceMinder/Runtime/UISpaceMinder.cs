@@ -12,7 +12,8 @@ namespace UISpaceMinder
     /// Enumerates all visual elements in a UIDocument to obtain its positive (UI-covered) and negative space.
     /// </summary>
     /// <remarks>
-    /// Must be placed under a UIDocument to receive UITK updates.
+    /// Must be placed under a UIDocument to receive UITK updates when editing UI in the Unity Editor.
+    /// Does not currently update in response to individual VisualElement geometry updates.
     /// </remarks>
     [RequireComponent(typeof(UIDocument))]
     [ExecuteAlways]
@@ -40,7 +41,20 @@ namespace UISpaceMinder
             if (destroyCancellationToken.IsCancellationRequested)
                 return;
 
+            _document.rootVisualElement.RegisterCallback<GeometryChangedEvent>(OnDocumentGeometryChanged);
+
             AnalyzeUIDocument(forceSendEvents: true);
+        }
+
+        private void OnDisable()
+        {
+            if (_document != null && _document.rootVisualElement != null)
+                _document.rootVisualElement.UnregisterCallback<GeometryChangedEvent>(OnDocumentGeometryChanged);
+        }
+
+        private void OnDocumentGeometryChanged(GeometryChangedEvent evt)
+        {
+            AnalyzeUIDocument();
         }
 
         public void AnalyzeUIDocument(bool forceSendEvents = false)
@@ -124,9 +138,7 @@ namespace UISpaceMinder
 
                 if (punchQueue.Any())
                 {
-                    Debug.Log("Punch queue contents:\n" + string.Join('\n', punchQueue));
                     negativeSpace = new NamedRectGroup(punchQueue.Encapsulate(), punchQueue.Select(r => new NamedRect(r)));
-                    Debug.Log("Negative space bounds calculated to be: " + negativeSpace.bounds.ToString());
                 }
             }
 
