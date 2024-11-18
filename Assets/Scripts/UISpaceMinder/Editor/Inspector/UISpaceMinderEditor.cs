@@ -210,7 +210,7 @@ namespace UISpaceMinder.Inspector
 
         public override VisualElement CreateInspectorGUI()
         {
-            var _inspector = new VisualElement()
+            var inspector = new VisualElement()
             {
                 focusable = false,
                 style =
@@ -224,14 +224,14 @@ namespace UISpaceMinder.Inspector
             Debug.Assert(_table != null);
             _table.itemsSource = new byte[1] { 0 };
 
-            _inspector.Add(_table);
+            inspector.Add(_table);
 
             if (!_minder.PositiveSpace.Equals(NamedRectGroup.Empty))
                 OnPositiveSpaceChanged(_minder.PositiveSpace, _minder.LastKnownCanvas, new Rect());
             if (!_minder.NegativeSpace.Equals(NamedRectGroup.Empty))
                 OnNegativeSpaceChanged(_minder.NegativeSpace, _minder.LastKnownCanvas, new Rect());
 
-            return _inspector;
+            return inspector;
         }
 
         private static readonly Color32[] ColorPalette = new[]
